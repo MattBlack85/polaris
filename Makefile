@@ -10,8 +10,8 @@ bootstrap: nuke-venv cheeseshop
 cheeseshop:
 	@pipenv install --dev
 
-get-latest:
-	@$(PIPENV_RUN) python polariscv.py
+get-data:
+	@$(PIPENV_RUN) python polariscv.py $(DATE)
 
 nuke-venv:
 	@pipenv --rm;\
