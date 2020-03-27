@@ -23,7 +23,6 @@ REPLACE_MAP = {
     'Réunion': 'Reunion',
     'conveyance': 'International',
     'Kosovo[1]': 'Kosovo',
-    'of)"': 'Iran',
     'territory"': 'Palestine'
 }
 
