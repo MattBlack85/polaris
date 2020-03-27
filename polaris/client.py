@@ -9,6 +9,24 @@ REPORT_1_DATE = '2020-01-21'
 WHO_URL = 'https://www.who.int/docs/default-source/coronaviruse/situation-reports/'
 EXTRACT_NUMBER_FROM_COUNTRY_REGEX = re.compile(r'^([\w\s\)]+) (\d+)$', re.UNICODE)
 
+REPLACE_MAP = {
+    'Herzegovina"': 'Bosnia and Herzegovina',
+    'Czechia': 'Czech Republic',
+    'The United Kingdom': 'United Kingdom',
+    'America"': 'United States of America',
+    'Grenadines"': 'Saint Vincent and the Grenadines',
+    'Curaçao': 'Curacao',
+    'Saint Barthélemy': 'Saint Barthelemy',
+    'Côte d’Ivoire': 'Cote d’Ivoire',
+    'of the Congo"': 'Democratic Republic of the Congo',
+    'Tanzania"': 'United Republic of Tanzania',
+    'Réunion': 'Reunion',
+    'conveyance': 'International',
+    'Kosovo[1]': 'Kosovo',
+    'of)"': 'Iran',
+    'territory"': 'Palestine'
+}
+
 
 class Polaris:
 
@@ -63,9 +81,21 @@ class Polaris:
             writer.writerows(new_lines)
             csvfile.truncate()
 
-    def get_data(self, date: str, page: list = [3, 4, 5, 6]) -> None:
+    def _fix_country_name(self, name: str) -> None:
+        with open(f'{name}.csv', 'r+') as f:
+            content = f.read()
+            for bad_name, good_name in REPLACE_MAP.items():
+                if bad_name in content:
+                    content = content.replace(bad_name, good_name)
+
+            f.seek(0)
+            f.write(content)
+            f.truncate()
+
+    def get_data(self, date: str, page: list = [2, 3, 4, 5, 6, 7]) -> None:
         day = dt.strptime(date, '%Y-%m-%d')
         url = self._get_pdf_url(day)
         print('PDF URL:', url)
         tabula.convert_into(url, f'{day.date()}.csv', output_format='csv', pages=page)
         self._clean_csv(str(day.date()))
+        self._fix_country_name(str(day.date()))
