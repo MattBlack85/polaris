@@ -1,29 +1,27 @@
 import csv
 import datetime
-import re
 from datetime import datetime as dt
 
 import tabula
 
 REPORT_1_DATE = '2020-01-21'
 WHO_URL = 'https://www.who.int/docs/default-source/coronaviruse/situation-reports/'
-EXTRACT_NUMBER_FROM_COUNTRY_REGEX = re.compile(r'^([\w\s\)]+) (\d+)$', re.UNICODE)
 
 REPLACE_MAP = {
-    'Herzegovina"': 'Bosnia and Herzegovina',
     'Czechia': 'Czech Republic',
     'The United Kingdom': 'United Kingdom',
-    'America"': 'United States of America',
-    'Grenadines"': 'Saint Vincent and the Grenadines',
     'Curaçao': 'Curacao',
     'Saint Barthélemy': 'Saint Barthelemy',
     'Côte d’Ivoire': 'Cote d’Ivoire',
-    'of the Congo"': 'Democratic Republic of the Congo',
-    'Tanzania"': 'United Republic of Tanzania',
     'Réunion': 'Reunion',
-    'conveyance': 'International',
+    'conveyance (Diamond': 'International',
     'Kosovo[1]': 'Kosovo',
-    'territory"': 'Palestine'
+    'occupied Palestinian territory': 'Palestine',
+    'Venezuela (Bolivarian Republic of)': 'Venezuela',
+    'Bolivia (Plurinational State of)': 'Bolivia',
+    'Democratic Republic': "Lao People's Democratic Republic",
+    'Iran (Islamic Republic of)': 'Iran',
+    '': 'Northern Mariana Islands',
 }
 
 
@@ -34,6 +32,16 @@ class Polaris:
         return f'{WHO_URL}{day.date().isoformat().replace("-", "")}-sitrep-{report_number}-covid-19.pdf'
 
     def _is_interesting_row(self, row: list) -> bool:
+        # Check if we expect a number but there is a string
+        try:
+            if row[1]:
+                try:
+                    int(row[1])
+                except ValueError:
+                    return False
+        except IndexError:
+            return False
+
         try:
             if not row[5] or not row[6]:
                 return False
@@ -44,34 +52,22 @@ class Polaris:
             return False
 
     def _sanitize_row(self, row: list) -> list:
-        new_row = []
-        country = None
-        try:
-            int(row[0][-1:])
-            if match := EXTRACT_NUMBER_FROM_COUNTRY_REGEX.search(row[0]):  # NOQA
-                try:
-                    country = match.group(1)
-                except AttributeError:
-                    pass
-                total_cases = match.group(2)
-        except ValueError:
-            # No number no party
-            pass
-
-        if country:
-            return [country, total_cases, row[2], row[3], row[4]]
-        else:
-            return [row[0], row[1], row[2], row[3], row[4]]
+        country = row[0] if '\r' not in row[0] else row[0].replace('\r', ' ')
+        if country in REPLACE_MAP:
+            country = REPLACE_MAP[country]
+        return [country, row[1], row[2], row[3], row[4]]
 
     def _clean_csv(self, name: str) -> None:
         new_lines = []
         with open(f'{name}.csv', 'r+', newline='') as csvfile:
-            reader = csv.reader(csvfile, quotechar='|')
-            writer = csv.writer(csvfile, quotechar='|')
+            reader = csv.reader(csvfile, delimiter='"')
+            writer = csv.writer(csvfile)
+
             for row in reader:
+                row = row[0].split(',')
                 if self._is_interesting_row(row):
                     new_row = self._sanitize_row(row)
-                    print('ROW', row)
+                    print('ROW', new_row)
                     new_row.append(name)
                     new_lines.append(new_row)
 
@@ -80,21 +76,9 @@ class Polaris:
             writer.writerows(new_lines)
             csvfile.truncate()
 
-    def _fix_country_name(self, name: str) -> None:
-        with open(f'{name}.csv', 'r+') as f:
-            content = f.read()
-            for bad_name, good_name in REPLACE_MAP.items():
-                if bad_name in content:
-                    content = content.replace(bad_name, good_name)
-
-            f.seek(0)
-            f.write(content)
-            f.truncate()
-
     def get_data(self, date: str, page: list = [2, 3, 4, 5, 6, 7]) -> None:
         day = dt.strptime(date, '%Y-%m-%d')
         url = self._get_pdf_url(day)
         print('PDF URL:', url)
         tabula.convert_into(url, f'{day.date()}.csv', output_format='csv', pages=page)
         self._clean_csv(str(day.date()))
-        self._fix_country_name(str(day.date()))
